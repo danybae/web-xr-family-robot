@@ -1,0 +1,119 @@
+{
+  "mom": {
+    "model": {
+      "position": {
+        "x": -2,
+        "y": 1.4,
+        "z": -2.45
+      },
+      "rotation": {
+        "x": 0,
+        "y": -82,
+        "z": 0
+      },
+      "scale": 2
+    },
+    "bubble": {
+      "position": {
+        "x": -1.2,
+        "y": 2.45,
+        "z": -2.5
+      },
+      "scale": 0.75,
+      "width": 360,
+      "height": 130,
+      "fontSize": 25,
+      "text": "The pancakes are burning, come help me flip them!",
+      "bgColor": "#ffffff",
+      "textColor": "#D9534F"
+    }
+  },
+  "child": {
+    "model": {
+      "position": {
+        "x": 2.9,
+        "y": 1,
+        "z": -1.45
+      },
+      "rotation": {
+        "x": -7,
+        "y": -98,
+        "z": 0
+      },
+      "scale": 1.2
+    },
+    "bubble": {
+      "position": {
+        "x": 2.65,
+        "y": 1.85,
+        "z": -2.25
+      },
+      "scale": 0.95,
+      "width": 220,
+      "height": 100,
+      "fontSize": 24,
+      "text": "I fell down and it hurts!",
+      "bgColor": "#ffffff",
+      "textColor": "#5BC0DE"
+    }
+  },
+  "camera": {
+    "position": {
+      "x": 0.4,
+      "y": 2,
+      "z": 1.3
+    },
+    "rotation": {
+      "x": -8,
+      "y": -8,
+      "z": -1
+    }
+  },
+  "room": {
+    "model": {
+      "position": {
+        "x": 0.3,
+        "y": 1.85,
+        "z": -2.15
+      },
+      "rotation": {
+        "x": 0,
+        "y": 313,
+        "z": 0
+      },
+      "scale": 6
+    }
+  },
+  "story": {
+    "popup": {
+      "position": {
+        "x": 0,
+        "y": -0.5,
+        "z": -2.35
+      },
+      "width": 420,
+      "height": 232,
+      "scale": 1.05
+    }
+  },
+  "momHelp": {
+    "button": {
+      "position": {
+        "x": -2.4,
+        "y": 1.7,
+        "z": -1.7
+      },
+      "scale": 0.75
+    }
+  },
+  "childHelp": {
+    "button": {
+      "position": {
+        "x": 3.1,
+        "y": 1.55,
+        "z": -1.4
+      },
+      "scale": 0.75
+    }
+  }
+}

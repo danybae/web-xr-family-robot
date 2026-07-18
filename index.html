@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Quest Interactive Experience</title>
+    <script src="aframe.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+          BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+      }
+
+      #control-panel {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 20000;
+        width: 326px;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+        box-sizing: border-box;
+        padding: 14px;
+        border: 1px solid rgba(20, 28, 38, 0.16);
+        border-radius: 8px;
+        background: rgba(248, 250, 252, 0.95);
+        box-shadow: 0 18px 42px rgba(15, 23, 42, 0.2);
+        color: #172033;
+        transition: width 160ms ease, max-height 160ms ease, padding 160ms ease;
+      }
+
+      .panel-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 12px;
+      }
+
+      .panel-title {
+        font-size: 16px;
+        font-weight: 750;
+      }
+
+      #save-status {
+        min-width: 70px;
+        text-align: right;
+        font-size: 12px;
+        color: #516071;
+      }
+
+      .panel-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-left: auto;
+      }
+
+      .panel-collapse {
+        width: 34px;
+        min-width: 34px;
+        padding: 0;
+        line-height: 1;
+      }
+
+      .panel-body {
+        display: block;
+      }
+
+      #control-panel.collapsed {
+        width: 52px;
+        max-height: 52px;
+        overflow: hidden;
+        padding: 8px;
+      }
+
+      #control-panel.collapsed .panel-header {
+        justify-content: center;
+        margin-bottom: 0;
+      }
+
+      #control-panel.collapsed .panel-title,
+      #control-panel.collapsed #save-status,
+      #control-panel.collapsed .panel-body {
+        display: none;
+      }
+
+      #control-panel.collapsed .panel-actions {
+        margin-left: 0;
+      }
+
+      .target-switch {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      button {
+        min-height: 34px;
+        border: 1px solid rgba(36, 48, 68, 0.22);
+        border-radius: 8px;
+        background: #ffffff;
+        color: #172033;
+        font: inherit;
+        font-weight: 650;
+        cursor: pointer;
+      }
+
+      button:hover {
+        background: #edf4ff;
+      }
+
+      button.active {
+        border-color: #2563eb;
+        background: #2563eb;
+        color: #ffffff;
+      }
+
+      .control-section {
+        padding-top: 12px;
+        border-top: 1px solid rgba(20, 28, 38, 0.12);
+      }
+
+      .control-section + .control-section {
+        margin-top: 12px;
+      }
+
+      .control-section h2 {
+        margin: 0 0 8px;
+        font-size: 12px;
+        line-height: 1.2;
+        letter-spacing: 0;
+        color: #516071;
+        text-transform: uppercase;
+      }
+
+      .slider-row {
+        display: grid;
+        grid-template-columns: 74px 1fr 52px;
+        align-items: center;
+        gap: 8px;
+        min-height: 30px;
+      }
+
+      .slider-row label {
+        font-size: 13px;
+        font-weight: 650;
+        color: #243044;
+      }
+
+      .slider-row output {
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        font-size: 12px;
+        color: #516071;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: #2563eb;
+      }
+
+      .button-row {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      #save-config {
+        border-color: #167a4a;
+        background: #168255;
+        color: #ffffff;
+      }
+
+      #save-config:hover {
+        background: #0f6f47;
+      }
+
+      @media (max-width: 760px) {
+        #control-panel {
+          top: auto;
+          right: 10px;
+          bottom: 10px;
+          left: 10px;
+          width: auto;
+          max-height: 42vh;
+        }
+      }
+    </style>
+
+    <script>
+      AFRAME.registerComponent("canvas-text", {
+        schema: {
+          text: { type: "string", default: "" },
+          width: { type: "number", default: 512 },
+          height: { type: "number", default: 128 },
+          fontSize: { type: "number", default: 40 },
+          bgColor: { type: "string", default: "white" },
+          textColor: { type: "string", default: "black" },
+          depthTest: { type: "boolean", default: true },
+          renderOrder: { type: "number", default: 0 },
+        },
+        update: function () {
+          this.render();
+        },
+        remove: function () {
+          this.disposeMesh();
+        },
+        disposeMesh: function () {
+          const mesh = this.el.getObject3D("mesh");
+          if (!mesh) return;
+          if (mesh.material?.map) mesh.material.map.dispose();
+          if (mesh.material) mesh.material.dispose();
+          if (mesh.geometry) mesh.geometry.dispose();
+          this.el.removeObject3D("mesh");
+        },
+        render: function () {
+          if (!window.THREE) return;
+          this.disposeMesh();
+
+          const canvas = document.createElement("canvas");
+          canvas.width = this.data.width;
+          canvas.height = this.data.height;
+          const ctx = canvas.getContext("2d");
+
+          if (this.data.bgColor !== "transparent") {
+            ctx.fillStyle = this.data.bgColor;
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(0, 0, canvas.width, canvas.height, 20);
+            } else {
+              ctx.rect(0, 0, canvas.width, canvas.height);
+            }
+            ctx.fill();
+          }
+
+          ctx.fillStyle = this.data.textColor;
+          ctx.font = `bold ${this.data.fontSize}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          const lines = wrapText(ctx, this.data.text, this.data.width - 48);
+          const lineHeight = this.data.fontSize * 1.18;
+          const firstLineY =
+            canvas.height / 2 - ((lines.length - 1) * lineHeight) / 2;
+          lines.forEach((line, index) => {
+            ctx.fillText(
+              line,
+              canvas.width / 2,
+              firstLineY + index * lineHeight
+            );
+          });
+
+          const texture = new THREE.CanvasTexture(canvas);
+          const material = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            side: THREE.DoubleSide,
+            depthTest: this.data.depthTest,
+            depthWrite: this.data.depthTest,
+          });
+          const geometry = new THREE.PlaneGeometry(
+            this.data.width / 200,
+            this.data.height / 200
+          );
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.renderOrder = this.data.renderOrder;
+          this.el.setObject3D("mesh", mesh);
+        },
+      });
+
+      AFRAME.registerComponent("choice-button", {
+        schema: { target: { type: "string" } },
+        init: function () {
+          this.el.addEventListener("click", () => {
+            console.log("Player selected:", this.data.target);
+            document
+              .getElementById("decision-popup")
+              .setAttribute("visible", "false");
+            alert("You chose to respond to: " + this.data.target);
+          });
+        },
+      });
+
+      AFRAME.registerComponent("preface-start-button", {
+        init: function () {
+          this.el.addEventListener("click", () => {
+            document.getElementById("xr-preface").setAttribute("visible", "false");
+            showSpeechBubbles();
+            startSpeechTypewriters();
+          });
+        },
+      });
+
+      AFRAME.registerComponent("spin-in-place", {
+        schema: {
+          speed: { type: "number", default: 80 },
+        },
+        tick: function (_time, delta) {
+          if (!window.THREE) return;
+          this.el.object3D.rotation.y += THREE.MathUtils.degToRad(
+            this.data.speed * (delta / 1000)
+          );
+        },
+      });
+
+      AFRAME.registerComponent("help-spin-trigger", {
+        schema: {
+          target: { type: "string" },
+        },
+        init: function () {
+          this.el.addEventListener("click", () => {
+            const target = document.getElementById(this.data.target);
+            if (!target) return;
+            target.setAttribute("spin-in-place", "speed: 240");
+          });
+        },
+      });
+
+      AFRAME.registerComponent("vertical-key-controls", {
+        schema: {
+          speed: { type: "number", default: 1.8 },
+        },
+        init: function () {
+          this.keys = new Set();
+          this.onKeyDown = (event) => {
+            const key = event.key.toLowerCase();
+            if (key === "q" || key === "e") {
+              this.keys.add(key);
+            }
+          };
+          this.onKeyUp = (event) => {
+            this.keys.delete(event.key.toLowerCase());
+          };
+          window.addEventListener("keydown", this.onKeyDown);
+          window.addEventListener("keyup", this.onKeyUp);
+        },
+        remove: function () {
+          window.removeEventListener("keydown", this.onKeyDown);
+          window.removeEventListener("keyup", this.onKeyUp);
+        },
+        tick: function (_time, delta) {
+          const moveY =
+            (this.keys.has("e") ? 1 : 0) - (this.keys.has("q") ? 1 : 0);
+          if (!moveY) return;
+
+          this.el.object3D.position.y +=
+            moveY * this.data.speed * (delta / 1000);
+        },
+      });
+
+      const CONFIG_KEY = "quest-character-config";
+      const PANEL_COLLAPSED_KEY = "quest-control-panel-collapsed";
+      const DEFAULT_CONFIG = {
+        mom: {
+          model: {
+            position: { x: -1.25, y: 0.58, z: -3.15 },
+            rotation: { x: 0, y: 180, z: 0 },
+            scale: 1.1,
+          },
+          bubble: {
+            position: { x: -1.25, y: 2.18, z: -3.15 },
+            scale: 1,
+            width: 500,
+            height: 130,
+            fontSize: 22,
+            text: "The pancakes are burning, come help me flip them!",
+            bgColor: "#ffffff",
+            textColor: "#D9534F",
+          },
+        },
+        child: {
+          model: {
+            position: { x: 1.15, y: 0.42, z: -3.0 },
+            rotation: { x: 0, y: 180, z: 0 },
+            scale: 0.8,
+          },
+          bubble: {
+            position: { x: 1.15, y: 1.52, z: -3.0 },
+            scale: 1,
+            width: 360,
+            height: 100,
+            fontSize: 24,
+            text: "I fell down and it hurts!",
+            bgColor: "#ffffff",
+            textColor: "#5BC0DE",
+          },
+        },
+        camera: {
+          position: { x: 0, y: 1.6, z: 0 },
+          rotation: { x: 0, y: 0, z: 0 },
+        },
+        room: {
+          model: {
+            position: { x: 0, y: 1.5, z: -2 },
+            rotation: { x: 0, y: 210, z: 0 },
+            scale: 6,
+          },
+        },
+        story: {
+          popup: {
+            position: { x: 0, y: 0, z: -1.45 },
+            width: 420,
+            height: 232,
+            scale: 1,
+          },
+        },
+        momHelp: {
+          button: {
+            position: { x: -2.55, y: 1.65, z: -2.45 },
+            scale: 1,
+          },
+        },
+        childHelp: {
+          button: {
+            position: { x: 3.35, y: 1.75, z: -1.45 },
+            scale: 1,
+          },
+        },
+      };
+
+      const CONTROL_GROUPS = [
+        {
+          title: "Model Position",
+          controls: [
+            { label: "X", path: "model.position.x", min: -5, max: 5, step: 0.05 },
+            { label: "Y", path: "model.position.y", min: -1, max: 4, step: 0.05 },
+            { label: "Z", path: "model.position.z", min: -6, max: 1, step: 0.05 },
+          ],
+        },
+        {
+          title: "Model Rotation",
+          controls: [
+            { label: "Rot X", path: "model.rotation.x", min: -180, max: 180, step: 1 },
+            { label: "Rot Y", path: "model.rotation.y", min: -180, max: 180, step: 1 },
+            { label: "Rot Z", path: "model.rotation.z", min: -180, max: 180, step: 1 },
+            { label: "Size", path: "model.scale", min: 0.1, max: 4, step: 0.05 },
+          ],
+        },
+        {
+          title: "Dialog Position",
+          controls: [
+            { label: "Box X", path: "bubble.position.x", min: -5, max: 5, step: 0.05 },
+            { label: "Box Y", path: "bubble.position.y", min: 0, max: 5, step: 0.05 },
+            { label: "Box Z", path: "bubble.position.z", min: -6, max: 1, step: 0.05 },
+          ],
+        },
+        {
+          title: "Dialog Size",
+          controls: [
+            { label: "Width", path: "bubble.width", min: 180, max: 1000, step: 10 },
+            { label: "Height", path: "bubble.height", min: 70, max: 320, step: 10 },
+            { label: "Font", path: "bubble.fontSize", min: 14, max: 52, step: 1 },
+            { label: "Scale", path: "bubble.scale", min: 0.35, max: 2.2, step: 0.05 },
+          ],
+        },
+      ];
+
+      const CAMERA_CONTROL_GROUPS = [
+        {
+          title: "Initial Camera Position",
+          controls: [
+            { label: "X", path: "position.x", min: -5, max: 5, step: 0.05 },
+            { label: "Y", path: "position.y", min: 0.2, max: 4, step: 0.05 },
+            { label: "Z", path: "position.z", min: -6, max: 4, step: 0.05 },
+          ],
+        },
+        {
+          title: "Initial Camera View",
+          controls: [
+            { label: "Pitch", path: "rotation.x", min: -80, max: 80, step: 1 },
+            { label: "Yaw", path: "rotation.y", min: -180, max: 180, step: 1 },
+            { label: "Roll", path: "rotation.z", min: -45, max: 45, step: 1 },
+          ],
+        },
+      ];
+
+      const ROOM_CONTROL_GROUPS = [
+        {
+          title: "Room Position",
+          controls: [
+            { label: "X", path: "model.position.x", min: -10, max: 10, step: 0.05 },
+            { label: "Y", path: "model.position.y", min: -5, max: 8, step: 0.05 },
+            { label: "Z", path: "model.position.z", min: -12, max: 8, step: 0.05 },
+          ],
+        },
+        {
+          title: "Room Rotation",
+          controls: [
+            { label: "Rot X", path: "model.rotation.x", min: -360, max: 360, step: 1 },
+            { label: "Rot Y", path: "model.rotation.y", min: -360, max: 360, step: 1 },
+            { label: "Rot Z", path: "model.rotation.z", min: -360, max: 360, step: 1 },
+          ],
+        },
+        {
+          title: "Room Size",
+          controls: [
+            { label: "Size", path: "model.scale", min: 0.5, max: 14, step: 0.05 },
+          ],
+        },
+      ];
+
+      const STORY_CONTROL_GROUPS = [
+        {
+          title: "Story Popup Position",
+          controls: [
+            { label: "X", path: "popup.position.x", min: -2, max: 2, step: 0.05 },
+            { label: "Y", path: "popup.position.y", min: -2, max: 2, step: 0.05 },
+            { label: "Z", path: "popup.position.z", min: -4, max: -0.5, step: 0.05 },
+          ],
+        },
+        {
+          title: "Story Popup Size",
+          controls: [
+            { label: "Width", path: "popup.width", min: 260, max: 760, step: 10 },
+            { label: "Height", path: "popup.height", min: 160, max: 420, step: 10 },
+            { label: "Scale", path: "popup.scale", min: 0.5, max: 1.8, step: 0.05 },
+          ],
+        },
+      ];
+
+      const HELP_CONTROL_GROUPS = [
+        {
+          title: "Help Button Position",
+          controls: [
+            { label: "X", path: "button.position.x", min: -6, max: 6, step: 0.05 },
+            { label: "Y", path: "button.position.y", min: -1, max: 5, step: 0.05 },
+            { label: "Z", path: "button.position.z", min: -6, max: 3, step: 0.05 },
+          ],
+        },
+        {
+          title: "Help Button Size",
+          controls: [
+            { label: "Size", path: "button.scale", min: 0.35, max: 2.2, step: 0.05 },
+          ],
+        },
+      ];
+
+      let sceneConfig = clone(DEFAULT_CONFIG);
+      let activeCharacter = "mom";
+      const speechDisplayText = {
+        mom: "",
+        child: "",
+      };
+      const speechAnimationFrames = {
+        mom: null,
+        child: null,
+      };
+      const SPEECH_TYPEWRITER_DURATION = 5000;
+      let speechBubblesVisible = false;
+      let helpButtonsVisible = false;
+
+      window.addEventListener("DOMContentLoaded", async () => {
+        sceneConfig = await loadSavedConfig();
+        buildControls();
+        applyAllCharacters();
+        bindButtons();
+        keepSceneMovementResponsive();
+      });
+
+      function wrapText(ctx, text, maxWidth) {
+        const words = text.split(" ");
+        const lines = [];
+        let currentLine = words[0] || "";
+
+        for (let i = 1; i < words.length; i += 1) {
+          const testLine = `${currentLine} ${words[i]}`;
+          if (ctx.measureText(testLine).width <= maxWidth) {
+            currentLine = testLine;
+          } else {
+            lines.push(currentLine);
+            currentLine = words[i];
+          }
+        }
+
+        lines.push(currentLine);
+        return lines;
+      }
+
+      async function loadSavedConfig() {
+        try {
+          const response = await fetch(`scene-config.json?t=${Date.now()}`);
+          if (response.ok) {
+            return deepMerge(clone(DEFAULT_CONFIG), await response.json());
+          }
+        } catch (error) {
+          console.warn("No saved server config found.", error);
+        }
+
+        try {
+          const localConfig = localStorage.getItem(CONFIG_KEY);
+          if (localConfig) {
+            return deepMerge(clone(DEFAULT_CONFIG), JSON.parse(localConfig));
+          }
+        } catch (error) {
+          console.warn("Could not read local config.", error);
+        }
+
+        return clone(DEFAULT_CONFIG);
+      }
+
+      function bindButtons() {
+        document.querySelectorAll("[data-character]").forEach((button) => {
+          button.addEventListener("click", () => {
+            activeCharacter = button.dataset.character;
+            buildControls();
+          });
+        });
+
+        document
+          .getElementById("save-config")
+          .addEventListener("click", saveConfig);
+        document
+          .getElementById("reset-config")
+          .addEventListener("click", resetConfig);
+        bindPanelCollapse();
+      }
+
+      function bindPanelCollapse() {
+        const panel = document.getElementById("control-panel");
+        const button = document.getElementById("panel-collapse");
+        const savedState = localStorage.getItem(PANEL_COLLAPSED_KEY) === "true";
+
+        setPanelCollapsed(savedState);
+
+        button.addEventListener("click", () => {
+          setPanelCollapsed(!panel.classList.contains("collapsed"));
+        });
+      }
+
+      function setPanelCollapsed(isCollapsed) {
+        const panel = document.getElementById("control-panel");
+        const button = document.getElementById("panel-collapse");
+
+        panel.classList.toggle("collapsed", isCollapsed);
+        button.textContent = isCollapsed ? ">" : "<";
+        button.setAttribute(
+          "aria-label",
+          isCollapsed ? "Expand controls" : "Collapse controls"
+        );
+        button.setAttribute(
+          "title",
+          isCollapsed ? "Expand controls" : "Collapse controls"
+        );
+        localStorage.setItem(PANEL_COLLAPSED_KEY, String(isCollapsed));
+      }
+
+      function keepSceneMovementResponsive() {
+        window.addEventListener(
+          "keydown",
+          (event) => {
+            if (
+              !["w", "a", "s", "d", "q", "e"].includes(
+                event.key.toLowerCase()
+              )
+            ) {
+              return;
+            }
+
+            if (document.activeElement?.tagName === "INPUT") {
+              document.activeElement.blur();
+            }
+          },
+          true
+        );
+      }
+
+      function buildControls() {
+        document.querySelectorAll("[data-character]").forEach((button) => {
+          button.classList.toggle(
+            "active",
+            button.dataset.character === activeCharacter
+          );
+        });
+
+        const stack = document.getElementById("slider-stack");
+        stack.textContent = "";
+
+        getActiveControlGroups().forEach((group) => {
+          const section = document.createElement("section");
+          section.className = "control-section";
+
+          const title = document.createElement("h2");
+          title.textContent = group.title;
+          section.appendChild(title);
+
+          group.controls.forEach((control) => {
+            const row = document.createElement("div");
+            row.className = "slider-row";
+
+            const label = document.createElement("label");
+            const id = `${activeCharacter}-${control.path.replaceAll(".", "-")}`;
+            label.setAttribute("for", id);
+            label.textContent = control.label;
+
+            const input = document.createElement("input");
+            input.type = "range";
+            input.id = id;
+            input.min = control.min;
+            input.max = control.max;
+            input.step = control.step;
+            input.value = getByPath(sceneConfig[activeCharacter], control.path);
+
+            const value = document.createElement("output");
+            value.setAttribute("for", id);
+            value.textContent = formatValue(input.value, control.step);
+
+            input.addEventListener("input", () => {
+              const nextValue = Number(input.value);
+              setByPath(sceneConfig[activeCharacter], control.path, nextValue);
+              value.textContent = formatValue(nextValue, control.step);
+              if (activeCharacter === "camera") {
+                applyCamera();
+              } else if (activeCharacter === "room") {
+                applyRoom();
+              } else if (activeCharacter === "story") {
+                applyStoryPopup();
+              } else if (isHelpTarget(activeCharacter)) {
+                applyHelpButton(activeCharacter);
+              } else {
+                applyCharacter(activeCharacter);
+              }
+              setStatus("Unsaved");
+            });
+
+            row.append(label, input, value);
+            section.appendChild(row);
+          });
+
+          stack.appendChild(section);
+        });
+      }
+
+      function getActiveControlGroups() {
+        if (activeCharacter === "camera") return CAMERA_CONTROL_GROUPS;
+        if (activeCharacter === "room") return ROOM_CONTROL_GROUPS;
+        if (activeCharacter === "story") return STORY_CONTROL_GROUPS;
+        if (isHelpTarget(activeCharacter)) return HELP_CONTROL_GROUPS;
+        return CONTROL_GROUPS;
+      }
+
+      function applyAllCharacters() {
+        applyCharacter("mom");
+        applyCharacter("child");
+        applyCamera();
+        applyRoom();
+        applyStoryPopup();
+        applyHelpButton("momHelp");
+        applyHelpButton("childHelp");
+      }
+
+      function isHelpTarget(name) {
+        return name === "momHelp" || name === "childHelp";
+      }
+
+      function applyCharacter(name) {
+        const config = sceneConfig[name];
+        const model = document.getElementById(`${name}-model`);
+        const bubble = document.getElementById(`${name}-bubble`);
+
+        model.setAttribute("position", toVec3(config.model.position));
+        model.setAttribute("rotation", toVec3(config.model.rotation));
+        model.setAttribute(
+          "scale",
+          `${config.model.scale} ${config.model.scale} ${config.model.scale}`
+        );
+
+        bubble.setAttribute("position", toVec3(config.bubble.position));
+        bubble.setAttribute("visible", speechBubblesVisible ? "true" : "false");
+        bubble.setAttribute(
+          "scale",
+          `${config.bubble.scale} ${config.bubble.scale} ${config.bubble.scale}`
+        );
+        bubble.setAttribute("canvas-text", {
+          text: getSpeechDisplayText(name),
+          width: config.bubble.width,
+          height: config.bubble.height,
+          fontSize: config.bubble.fontSize,
+          bgColor: config.bubble.bgColor,
+          textColor: config.bubble.textColor,
+        });
+
+      }
+
+      function getSpeechDisplayText(name) {
+        if (Object.prototype.hasOwnProperty.call(speechDisplayText, name)) {
+          return speechDisplayText[name];
+        }
+
+        return sceneConfig[name]?.bubble?.text || "";
+      }
+
+      function startSpeechTypewriters() {
+        showSpeechBubbles();
+        startSpeechTypewriter("mom");
+        startSpeechTypewriter("child");
+      }
+
+      function showSpeechBubbles() {
+        speechBubblesVisible = true;
+        document.getElementById("mom-bubble")?.setAttribute("visible", "true");
+        document.getElementById("child-bubble")?.setAttribute("visible", "true");
+      }
+
+      function startSpeechTypewriter(name) {
+        const fullText = sceneConfig[name].bubble.text;
+        const startedAt = performance.now();
+
+        if (speechAnimationFrames[name]) {
+          cancelAnimationFrame(speechAnimationFrames[name]);
+        }
+
+        speechDisplayText[name] = "";
+        applyCharacter(name);
+
+        const tick = (now) => {
+          const progress = Math.min(
+            (now - startedAt) / SPEECH_TYPEWRITER_DURATION,
+            1
+          );
+          const nextLength = Math.floor(fullText.length * progress);
+
+          speechDisplayText[name] = fullText.slice(0, nextLength);
+          applyCharacter(name);
+
+          if (progress < 1) {
+            speechAnimationFrames[name] = requestAnimationFrame(tick);
+            return;
+          }
+
+          speechDisplayText[name] = fullText;
+          speechAnimationFrames[name] = null;
+          applyCharacter(name);
+          showHelpButtonsIfSpeechDone();
+        };
+
+        speechAnimationFrames[name] = requestAnimationFrame(tick);
+      }
+
+      function showHelpButtonsIfSpeechDone() {
+        if (speechAnimationFrames.mom || speechAnimationFrames.child) return;
+
+        helpButtonsVisible = true;
+        applyHelpButton("momHelp");
+        applyHelpButton("childHelp");
+      }
+
+      function applyCamera() {
+        const camera = document.getElementById("main-camera");
+        const config = sceneConfig.camera;
+        if (!camera || !config) return;
+
+        camera.setAttribute("position", toVec3(config.position));
+        camera.setAttribute("rotation", toVec3(config.rotation));
+
+        const lookControls = camera.components?.["look-controls"];
+        if (
+          lookControls?.pitchObject &&
+          lookControls?.yawObject &&
+          window.THREE
+        ) {
+          lookControls.pitchObject.rotation.x = THREE.MathUtils.degToRad(
+            config.rotation.x
+          );
+          lookControls.yawObject.rotation.y = THREE.MathUtils.degToRad(
+            config.rotation.y
+          );
+          camera.object3D.rotation.z = THREE.MathUtils.degToRad(
+            config.rotation.z
+          );
+        }
+      }
+
+      function applyRoom() {
+        const room = document.getElementById("room-scene-model");
+        const config = sceneConfig.room;
+        if (!room || !config) return;
+
+        room.setAttribute("position", toVec3(config.model.position));
+        room.setAttribute("rotation", toVec3(config.model.rotation));
+        room.setAttribute(
+          "scale",
+          `${config.model.scale} ${config.model.scale} ${config.model.scale}`
+        );
+      }
+
+      function applyStoryPopup() {
+        const config = sceneConfig.story?.popup;
+        const popup = document.getElementById("xr-preface");
+        if (!config || !popup) return;
+
+        const width = config.width;
+        const height = config.height;
+        const panelHeight = height / 200;
+        const innerWidth = Math.max(220, width - 48);
+        const titleHeight = 68;
+        const buttonWidth = Math.min(150, Math.max(110, width * 0.32));
+        const buttonHeight = 46;
+        const bodyHeight = Math.max(90, height - titleHeight - buttonHeight - 48);
+
+        popup.setAttribute("position", toVec3(config.position));
+        popup.setAttribute("scale", `${config.scale} ${config.scale} ${config.scale}`);
+
+        document.getElementById("xr-preface-bg").setAttribute("canvas-text", {
+          text: "",
+          width,
+          height,
+          fontSize: 18,
+          bgColor: "rgba(17, 24, 39, 0.94)",
+          textColor: "#ffffff",
+          depthTest: false,
+          renderOrder: 119,
+        });
+
+        document.getElementById("xr-preface-title").setAttribute("position", {
+          x: 0,
+          y: panelHeight / 2 - 0.22,
+          z: 0.01,
+        });
+        document.getElementById("xr-preface-title").setAttribute("canvas-text", {
+          text: "Story So Far",
+          width: innerWidth,
+          height: titleHeight,
+          fontSize: 28,
+          bgColor: "transparent",
+          textColor: "#ffffff",
+          depthTest: false,
+          renderOrder: 120,
+        });
+
+        document.getElementById("xr-preface-body").setAttribute("position", {
+          x: 0,
+          y: 0.02,
+          z: 0.01,
+        });
+        document.getElementById("xr-preface-body").setAttribute("canvas-text", {
+          text:
+            "You are a household robot living in a family of five. The family members include a 5-year-old child, a homemaker mother...",
+          width: innerWidth,
+          height: bodyHeight,
+          fontSize: 18,
+          bgColor: "transparent",
+          textColor: "#f8fafc",
+          depthTest: false,
+          renderOrder: 120,
+        });
+
+        document.getElementById("xr-preface-start").setAttribute("position", {
+          x: 0,
+          y: -panelHeight / 2 + 0.25,
+          z: 0.02,
+        });
+        document.getElementById("xr-preface-start").setAttribute("canvas-text", {
+          text: "Start",
+          width: buttonWidth,
+          height: buttonHeight,
+          fontSize: 20,
+          bgColor: "#2563eb",
+          textColor: "white",
+          depthTest: false,
+          renderOrder: 121,
+        });
+      }
+
+      function applyHelpButton(name) {
+        const config = sceneConfig[name]?.button;
+        const button = document.getElementById(`${name}-button`);
+        if (!config || !button) return;
+
+        button.setAttribute("position", toVec3(config.position));
+        button.setAttribute("visible", helpButtonsVisible ? "true" : "false");
+        button.setAttribute(
+          "scale",
+          `${config.scale} ${config.scale} ${config.scale}`
+        );
+      }
+
+      async function saveConfig() {
+        setStatus("Saving...");
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(sceneConfig));
+
+        try {
+          const response = await fetch("/save-config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(sceneConfig, null, 2),
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          setStatus("Saved");
+        } catch (error) {
+          downloadConfig();
+          setStatus("Downloaded");
+          console.warn("Server save failed, downloaded config instead.", error);
+        }
+      }
+
+      function resetConfig() {
+        sceneConfig = clone(DEFAULT_CONFIG);
+        applyAllCharacters();
+        buildControls();
+        setStatus("Reset");
+      }
+
+      function downloadConfig() {
+        const blob = new Blob([JSON.stringify(sceneConfig, null, 2)], {
+          type: "application/json",
+        });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "scene-config.json";
+        link.click();
+        URL.revokeObjectURL(link.href);
+      }
+
+      function setStatus(message) {
+        document.getElementById("save-status").textContent = message;
+      }
+
+      function toVec3(value) {
+        return `${value.x} ${value.y} ${value.z}`;
+      }
+
+      function getByPath(root, path) {
+        return path.split(".").reduce((value, part) => value[part], root);
+      }
+
+      function setByPath(root, path, nextValue) {
+        const parts = path.split(".");
+        const key = parts.pop();
+        const target = parts.reduce((value, part) => value[part], root);
+        target[key] = nextValue;
+      }
+
+      function formatValue(value, step) {
+        const decimals = String(step).includes(".")
+          ? String(step).split(".")[1].length
+          : 0;
+        return Number(value).toFixed(Math.min(decimals, 2));
+      }
+
+      function clone(value) {
+        return JSON.parse(JSON.stringify(value));
+      }
+
+      function deepMerge(target, source) {
+        Object.keys(source || {}).forEach((key) => {
+          if (
+            source[key] &&
+            typeof source[key] === "object" &&
+            !Array.isArray(source[key])
+          ) {
+            target[key] = deepMerge(target[key] || {}, source[key]);
+          } else {
+            target[key] = source[key];
+          }
+        });
+        return target;
+      }
+    </script>
+  </head>
+  <body>
+    <div id="control-panel">
+      <div class="panel-header">
+        <div class="panel-title">Model Controls</div>
+        <div class="panel-actions">
+          <div id="save-status">Ready</div>
+          <button
+            id="panel-collapse"
+            class="panel-collapse"
+            type="button"
+            aria-label="Collapse controls"
+            title="Collapse controls"
+          >
+            &lt;
+          </button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <div class="target-switch">
+          <button class="active" type="button" data-character="mom">Mom</button>
+          <button type="button" data-character="child">Child</button>
+          <button type="button" data-character="camera">Camera</button>
+          <button type="button" data-character="room">Room</button>
+          <button type="button" data-character="story">Story</button>
+          <button type="button" data-character="momHelp">Mom Help</button>
+          <button type="button" data-character="childHelp">Child Help</button>
+        </div>
+        <div id="slider-stack"></div>
+        <div class="button-row">
+          <button id="save-config" type="button">Save</button>
+          <button id="reset-config" type="button">Reset</button>
+        </div>
+      </div>
+    </div>
+
+    <a-scene
+      cursor="rayOrigin: mouse"
+      background="color: #dfe8ef"
+      renderer="colorManagement: true"
+    >
+      <a-assets timeout="60000">
+        <a-asset-item id="room-model" src="room_new.glb"></a-asset-item>
+        <a-asset-item id="mom-model-asset" src="mom_new.glb"></a-asset-item>
+        <a-asset-item id="child-model-asset" src="child_new.glb"></a-asset-item>
+      </a-assets>
+
+      <a-entity id="rig" position="0 0 0">
+        <a-camera
+          id="main-camera"
+          position="0 1.6 0"
+          look-controls="pointerLockEnabled: true"
+          wasd-controls="acceleration: 18; fly: false"
+          vertical-key-controls="speed: 1.8"
+        >
+          <a-entity id="xr-preface" position="0 0 -1.45" visible="true">
+            <a-entity
+              id="xr-preface-bg"
+              canvas-text="text: ; width: 420; height: 232; fontSize: 18; bgColor: rgba(17, 24, 39, 0.94); textColor: #ffffff; depthTest: false; renderOrder: 119"
+            ></a-entity>
+            <a-entity
+              id="xr-preface-title"
+              position="0 0.36 0.01"
+              canvas-text="text: Story So Far; width: 380; height: 68; fontSize: 28; bgColor: transparent; textColor: #ffffff; depthTest: false; renderOrder: 120"
+            ></a-entity>
+            <a-entity
+              id="xr-preface-body"
+              position="0 0.03 0.01"
+              canvas-text="text: You are a household robot living in a family of five. The family members include a 5-year-old child, a homemaker mother...; width: 360; height: 190; fontSize: 18; bgColor: transparent; textColor: #f8fafc; depthTest: false; renderOrder: 120"
+            ></a-entity>
+            <a-entity
+              id="xr-preface-start"
+              class="clickable"
+              preface-start-button
+              position="0 -0.33 0.02"
+              canvas-text="text: Start; width: 130; height: 46; fontSize: 20; bgColor: #2563eb; textColor: white; depthTest: false; renderOrder: 121"
+            ></a-entity>
+          </a-entity>
+
+          <a-entity id="decision-popup" position="0 0 -2.75" visible="false">
+            <a-entity
+              geometry="primitive: plane; width: 2.65; height: 1"
+              material="color: #222; opacity: 0.85; transparent: true; side: double; depthTest: false"
+            ></a-entity>
+            <a-entity
+              position="0 0.28 0.01"
+              canvas-text="text: Emergency! Who will you respond to first?; width: 460; height: 86; fontSize: 23; bgColor: transparent; textColor: white; depthTest: false; renderOrder: 100"
+            ></a-entity>
+            <a-entity
+              class="option-btn"
+              choice-button="target: Woman in the kitchen"
+              position="-0.62 -0.2 0.02"
+              canvas-text="text: Help kitchen; width: 220; height: 72; fontSize: 20; bgColor: #F0AD4E; textColor: white; depthTest: false; renderOrder: 100"
+            ></a-entity>
+            <a-entity
+              class="option-btn"
+              choice-button="target: Child on the floor"
+              position="0.62 -0.2 0.02"
+              canvas-text="text: Comfort child; width: 220; height: 72; fontSize: 20; bgColor: #5CB85C; textColor: white; depthTest: false; renderOrder: 100"
+            ></a-entity>
+          </a-entity>
+        </a-camera>
+        <a-entity
+          laser-controls="hand: left"
+          raycaster="objects: .clickable"
+        ></a-entity>
+        <a-entity
+          laser-controls="hand: right"
+          raycaster="objects: .clickable"
+        ></a-entity>
+      </a-entity>
+
+      <a-gltf-model
+        id="room-scene-model"
+        src="#room-model"
+        position="0 1.5 -2"
+        rotation="0 210 0"
+        scale="6 6 6"
+      ></a-gltf-model>
+
+      <a-gltf-model id="mom-model" src="#mom-model-asset"></a-gltf-model>
+      <a-entity id="mom-bubble" class="speech-bubble"></a-entity>
+      <a-entity id="momHelp-button" position="-2.55 1.65 -2.45" visible="false">
+        <a-entity
+          animation__pulse="property: scale; from: 0.92 0.92 0.92; to: 1.08 1.08 1.08; dir: alternate; dur: 760; easing: easeInOutSine; loop: true"
+        >
+          <a-circle
+            class="clickable"
+            help-spin-trigger="target: child-model"
+            radius="0.32"
+            color="#dc2626"
+            material="side: double"
+          ></a-circle>
+          <a-entity
+            class="clickable"
+            help-spin-trigger="target: child-model"
+            position="0 0 0.01"
+            canvas-text="text: HELP; width: 150; height: 60; fontSize: 28; bgColor: transparent; textColor: #ffffff"
+          ></a-entity>
+        </a-entity>
+      </a-entity>
+
+      <a-gltf-model id="child-model" src="#child-model-asset"></a-gltf-model>
+      <a-entity id="child-bubble" class="speech-bubble"></a-entity>
+      <a-entity id="childHelp-button" position="3.35 1.75 -1.45" visible="false">
+        <a-entity
+          animation__pulse="property: scale; from: 0.92 0.92 0.92; to: 1.08 1.08 1.08; dir: alternate; dur: 760; easing: easeInOutSine; loop: true"
+        >
+          <a-circle
+            class="clickable"
+            help-spin-trigger="target: mom-model"
+            radius="0.32"
+            color="#dc2626"
+            material="side: double"
+          ></a-circle>
+          <a-entity
+            class="clickable"
+            help-spin-trigger="target: mom-model"
+            position="0 0 0.01"
+            canvas-text="text: HELP; width: 150; height: 60; fontSize: 28; bgColor: transparent; textColor: #ffffff"
+          ></a-entity>
+        </a-entity>
+      </a-entity>
+
+      <a-light type="ambient" color="#ffffff" intensity="0.6"></a-light>
+      <a-light
+        type="directional"
+        color="#FFF4D2"
+        intensity="1.2"
+        position="5 10 5"
+      ></a-light>
+    </a-scene>
+  </body>
+</html>

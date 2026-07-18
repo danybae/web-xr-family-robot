@@ -1,0 +1,12 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+
+# Local share package
+Quest_WebXR_Local_Run/
+Quest_WebXR_Local_Run.zip
+
+# Superseded models
+child.glb
+mom.glb
+room_model-v2.glb
