@@ -192,8 +192,22 @@
           right: 10px;
           bottom: 10px;
           left: 10px;
-          width: auto;
+          width: calc(100vw - 20px);
           max-height: 42vh;
+        }
+
+        #control-panel.collapsed {
+          top: 10px;
+          right: 10px;
+          bottom: auto;
+          left: auto;
+          width: 52px;
+          max-height: 52px;
+        }
+
+        .slider-row {
+          grid-template-columns: 66px minmax(88px, 1fr) 44px;
+          gap: 6px;
         }
       }
     </style>
@@ -630,9 +644,12 @@
       function bindPanelCollapse() {
         const panel = document.getElementById("control-panel");
         const button = document.getElementById("panel-collapse");
-        const savedState = localStorage.getItem(PANEL_COLLAPSED_KEY) === "true";
+        const savedState = localStorage.getItem(PANEL_COLLAPSED_KEY);
+        const defaultCollapsed = window.matchMedia("(max-width: 760px)").matches;
 
-        setPanelCollapsed(savedState);
+        setPanelCollapsed(
+          savedState === null ? defaultCollapsed : savedState === "true"
+        );
 
         button.addEventListener("click", () => {
           setPanelCollapsed(!panel.classList.contains("collapsed"));
