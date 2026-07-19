@@ -2,6 +2,8 @@
 
 An interactive A-Frame/WebXR scene set in a family home. It includes a story intro, animated dialogue, HELP interactions, keyboard navigation, and an in-page control panel for positioning the room, characters, camera, popups, and buttons.
 
+**Live experience:** [https://danybae.github.io/web-xr-family-robot/](https://danybae.github.io/web-xr-family-robot/)
+
 ## Requirements
 
 - Python 3.8 or newer
@@ -27,6 +29,8 @@ Keep the terminal window open while using the experience. Do not open `index.htm
 ## Configuration and saving
 
 The checked-in `scene-config.json` is ready to use, so no initial configuration is needed. The in-page **Save** button writes the current controls back to that file. Run the project from a writable folder; saved changes remain local until they are committed and pushed to GitHub.
+
+On the GitHub Pages version, **Save** downloads the current `scene-config.json` because a static website cannot write back to the repository. Replace the repository file and commit it when you want those settings to become the new published defaults.
 
 Port `5173` must be available. If startup reports that the address is already in use, stop the other process using that port and start the experience again.
 

@@ -557,6 +557,7 @@
         child: null,
       };
       const SPEECH_TYPEWRITER_DURATION = 5000;
+      const IS_GITHUB_PAGES = window.location.hostname.endsWith(".github.io");
       let speechBubblesVisible = false;
       let helpButtonsVisible = false;
 
@@ -988,6 +989,12 @@
       async function saveConfig() {
         setStatus("Saving...");
         localStorage.setItem(CONFIG_KEY, JSON.stringify(sceneConfig));
+
+        if (IS_GITHUB_PAGES) {
+          downloadConfig();
+          setStatus("Downloaded");
+          return;
+        }
 
         try {
           const response = await fetch("/save-config", {
